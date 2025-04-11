@@ -6,24 +6,41 @@ use tauri_plugin_store::StoreExt;
 pub async fn resolve_setup(app: &mut App) -> Result<(), Error> {
     let args: Vec<String> = std::env::args().collect();
     println!("Application started with arguments: {:?}", args);
-    // 将参数转成查询参数格式
-    let query_params = args
+    // 判断args每一项是不是包含=，是的话，将=前面的作为key，=后面的作为value，否则作废
+    let url_params = args
         .iter()
-        .map(|arg| arg.split('=').collect::<Vec<&str>>())
-        .collect::<Vec<Vec<&str>>>();
-    println!("query_params: {:?}", query_params);
+        .map(|arg| {
+            if arg.contains("=") {
+                let parts = arg.split('=').collect::<Vec<&str>>();
+                (parts[0], parts[1])
+            } else {
+                ("exec", arg.as_str())
+            }
+        })
+        .collect::<Vec<(&str, &str)>>();
+    println!("url_params: {:?}", url_params);
     let app_handle = app.handle();
     // 示例 JSON 字符串
     let window_json = r#"
         {
             "title": "PakePlus",
             "visible": false,
-            "url": "index.html?-name=Tom&--age=18",
+            "url": "index.html",
             "label": "main"
         }
     "#;
+    // 将参数转成url参数并拼接成字符串，然后判断window_json里面的url是否已经包含url参数，是的话，将url参数拼接在url后面，否则加上?号再拼接到url上
+    let url_params_str = url_params
+        .iter()
+        .map(|param| format!("{}={}", param.0, param.1))
+        .collect::<Vec<String>>()
+        .join("&");
+    let url = format!("index.html?{}", url_params_str);
+    println!("url: {:?}", url);
+    let window_json = window_json.replace("index.html", &url);
+    println!("window_json: {:?}", window_json);
     // 解析 JSON 字符串为 WindowConfig 类型
-    let config: WindowConfig = serde_json::from_str(window_json).unwrap();
+    let config: WindowConfig = serde_json::from_str(&window_json).unwrap();
     let window = tauri::WebviewWindowBuilder::from_config(app_handle, &config)
         .unwrap()
         .initialization_script(include_str!("../../data/analytics.js"))
