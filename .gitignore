@@ -38,3 +38,4 @@ dist-ssr
 .externalNativeBuild
 .cxx
 local.properties
+docs/
