@@ -1,4 +1,5 @@
 use futures::StreamExt;
+use notify_rust::Notification;
 use reqwest::Client;
 use serde::Serialize;
 use std::env;
@@ -106,10 +107,13 @@ pub async fn download_file(
 }
 
 #[tauri::command]
-pub fn get_exe_dir() -> String {
-    let exe_path = env::current_exe().unwrap();
-    let exe_dir = exe_path.parent().unwrap();
-    exe_dir.to_str().unwrap().to_string()
+pub fn get_exe_dir(parent: bool) -> String {
+    let exe_dir = env::current_exe().unwrap();
+    if parent {
+        exe_dir.parent().unwrap().to_str().unwrap().to_string()
+    } else {
+        exe_dir.to_str().unwrap().to_string()
+    }
 }
 
 #[tauri::command]
@@ -122,4 +126,48 @@ pub fn find_port() -> Result<u16, String> {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     Ok(port)
+}
+
+#[derive(serde::Deserialize)]
+pub struct NotificationParams {
+    title: String,
+    body: String,
+    icon: String,
+}
+
+#[tauri::command]
+pub fn notification(app: AppHandle, params: NotificationParams) -> Result<(), String> {
+    let mut notifi_app = Notification::new();
+    #[cfg(target_os = "macos")]
+    {
+        let _ = notify_rust::set_application(if tauri::is_dev() {
+            "com.apple.Terminal"
+        } else {
+            &app.config().identifier
+        });
+    }
+    #[cfg(windows)]
+    {
+        use std::path::MAIN_SEPARATOR as SEP;
+        let curr_dir = get_exe_dir(true);
+        // set the notification's System.AppUserModel.ID only when running the installed app
+        if !(curr_dir.ends_with(format!("{SEP}target{SEP}debug").as_str())
+            || curr_dir.ends_with(format!("{SEP}target{SEP}release").as_str()))
+        {
+            notifi_app.app_id(&app.config().identifier);
+        }
+    }
+    if !params.icon.is_empty() {
+        notifi_app.icon(&params.icon);
+    } else {
+        notifi_app.auto_icon();
+    }
+    tauri::async_runtime::spawn(async move {
+        let _ = notifi_app
+            .summary(&params.title)
+            .body(&params.body)
+            .show()
+            .expect("show notification failed");
+    });
+    Ok(())
 }

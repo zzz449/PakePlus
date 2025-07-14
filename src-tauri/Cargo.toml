@@ -24,6 +24,7 @@ serde_json = "1"
 open = "5.3.2"
 encoding_rs = "0.8"
 futures = "0.3.31"
+notify-rust = "4.11.7"
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", features = ["json", "stream"] }
 tauri-plugin-store = "2.0.0"
